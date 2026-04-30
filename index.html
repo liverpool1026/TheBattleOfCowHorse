@@ -43,14 +43,15 @@
       background:rgba(13,13,26,.93);
       backdrop-filter:blur(16px);
       border-bottom:1px solid var(--border);
-      display:flex; align-items:center;
+      display:flex; align-items:center; justify-content:flex-end;
       gap:.6rem; padding:.65rem 2rem;
       flex-wrap:wrap;
     }
     .action-bar-title {
+      position:absolute; left:50%; transform:translateX(-50%);
       font-size:.72rem; color:var(--gold);
       letter-spacing:.3rem; text-transform:uppercase;
-      margin-right:auto;
+      white-space:nowrap; pointer-events:none;
     }
     .ab-btn {
       display:inline-flex; align-items:center; gap:.38rem;

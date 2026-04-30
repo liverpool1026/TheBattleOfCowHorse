@@ -1,0 +1,54 @@
+name: Validate data.json
+
+on:
+  pull_request:
+    paths:
+      - 'data.json'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate data.json
+        run: |
+          python3 - <<'EOF'
+          import json, sys
+
+          try:
+              with open('data.json', encoding='utf-8') as f:
+                  data = json.load(f)
+          except json.JSONDecodeError as e:
+              print(f"ERROR: Invalid JSON — {e}")
+              sys.exit(1)
+
+          if not isinstance(data, list):
+              print("ERROR: data.json must be a JSON array")
+              sys.exit(1)
+
+          PLAYERS = {"牛", "马", "太后"}
+          errors = []
+
+          for i, row in enumerate(data):
+              if not isinstance(row, list) or len(row) != 5:
+                  errors.append(f"Row {i+1}: expected [gameNum, date, player1, player2, winner], got {row}")
+                  continue
+              num, date, p1, p2, winner = row
+              if p1 not in PLAYERS:
+                  errors.append(f"Row {i+1} (game #{num}): invalid Player 1 '{p1}' — must be 牛, 马, or 太后")
+              if p2 not in PLAYERS:
+                  errors.append(f"Row {i+1} (game #{num}): invalid Player 2 '{p2}' — must be 牛, 马, or 太后")
+              if p1 == p2:
+                  errors.append(f"Row {i+1} (game #{num}): Player 1 and Player 2 cannot be the same")
+              if winner not in (p1, p2):
+                  errors.append(f"Row {i+1} (game #{num}): winner '{winner}' must be either Player 1 or Player 2")
+
+          if errors:
+              print(f"❌ data.json validation failed — {len(errors)} error(s):\n")
+              for e in errors:
+                  print(f"  • {e}")
+              sys.exit(1)
+          else:
+              print(f"✅ data.json valid — {len(data)} records, all rows OK")
+          EOF

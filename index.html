@@ -561,11 +561,16 @@
       </div>
     </div>
     <div class="settings-note">
-      Required to create Pull Requests directly from the browser.<br>
-      Generate one at <a href="https://github.com/settings/tokens?type=beta" target="_blank">github.com/settings/tokens</a>
-      with <strong>Contents</strong> and <strong>Pull requests</strong> read &amp; write permissions
-      for the <code>TheBattleOfCowHorse</code> repo.<br><br>
-      ⚠ The token is stored in your browser's localStorage — only use this on a trusted device.
+      Required to create Pull Requests directly from the browser.<br><br>
+      <strong style="color:var(--text)">Recommended: Classic token</strong><br>
+      Go to <a href="https://github.com/settings/tokens/new" target="_blank">github.com/settings/tokens/new</a>,
+      set any expiry, tick the <strong>repo</strong> scope (full control), and click Generate.<br><br>
+      <strong style="color:var(--text)">Fine-grained token</strong> (more restrictive):<br>
+      Go to <a href="https://github.com/settings/personal-access-tokens/new" target="_blank">github.com/settings/personal-access-tokens/new</a>,
+      set Repository access → <strong>Only select repositories → TheBattleOfCowHorse</strong>,
+      then under Permissions grant <strong>Contents: Read &amp; Write</strong>
+      and <strong>Pull requests: Read &amp; Write</strong>.<br><br>
+      ⚠ Token is stored in your browser's localStorage — only use on a trusted device.
     </div>
     <div class="form-actions">
       <button class="btn-cancel" onclick="closeSettings()">Cancel</button>
@@ -1241,7 +1246,19 @@ async function createGamePR(gameRow) {
     prResult.classList.add('show');
     showToast('✓ Pull request opened on GitHub', 'success');
   } catch(e) {
-    showToast(`PR failed: ${e.message}`, 'error');
+    const msg = e.message || '';
+    const hint = msg.includes('not accessible') || msg.includes('Resource') || msg.includes('403')
+      ? 'Token missing permissions — click ⚙ and regenerate using the Classic token with repo scope.'
+      : msg.includes('401') || msg.includes('Bad credentials')
+      ? 'Invalid token — click ⚙ to update it.'
+      : msg;
+    showToast(`PR failed: ${hint}`, 'error');
+    document.getElementById('prResult').innerHTML =
+      `❌ ${hint} <button onclick="openSettings()" style="background:transparent;border:none;color:var(--horse);cursor:pointer;text-decoration:underline;font-size:.8rem">⚙ Fix token</button>`;
+    document.getElementById('prResult').style.background = 'rgba(255,71,87,.1)';
+    document.getElementById('prResult').style.borderColor = 'rgba(255,71,87,.3)';
+    document.getElementById('prResult').style.color = 'var(--red)';
+    document.getElementById('prResult').classList.add('show');
   } finally {
     btn.classList.remove('loading');
     btn.disabled = false;

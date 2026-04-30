@@ -297,6 +297,40 @@
     .btn-submit:hover { background:linear-gradient(135deg,rgba(232,160,18,.4),rgba(255,215,0,.25)); }
     .btn-cancel { padding:.58rem 1.1rem; border-radius:9px; background:transparent; border:1px solid rgba(255,255,255,.1); color:var(--muted); font-size:.83rem; cursor:pointer; transition:all .2s; font-family:inherit; }
     .btn-cancel:hover { border-color:rgba(255,255,255,.25); color:var(--text); }
+    .btn-pr {
+      flex:1; padding:.58rem 1rem; border-radius:9px;
+      background:linear-gradient(135deg,rgba(74,144,217,.25),rgba(74,144,217,.12));
+      border:1px solid rgba(74,144,217,.5); color:var(--horse);
+      font-size:.83rem; font-weight:700; letter-spacing:.1rem;
+      cursor:pointer; transition:all .2s; font-family:inherit;
+      display:flex; align-items:center; justify-content:center; gap:.4rem;
+    }
+    .btn-pr:hover { background:linear-gradient(135deg,rgba(74,144,217,.4),rgba(74,144,217,.25)); }
+    .btn-pr:disabled,.btn-submit:disabled { opacity:.45; cursor:not-allowed; }
+    .btn-pr .spin { display:none; width:12px; height:12px; border:2px solid rgba(74,144,217,.3); border-top-color:var(--horse); border-radius:50%; animation:spin .7s linear infinite; }
+    .btn-pr.loading .spin { display:inline-block; }
+    .btn-pr.loading .btn-pr-label { display:none; }
+
+    /* token indicator */
+    .token-dot { width:7px; height:7px; border-radius:50%; display:inline-block; background:rgba(255,255,255,.2); }
+    .token-dot.set { background:var(--green); box-shadow:0 0 5px rgba(46,213,115,.5); }
+
+    /* settings modal */
+    .settings-note { font-size:.72rem; color:var(--muted); line-height:1.6; margin-top:.6rem; }
+    .settings-note a { color:var(--horse); }
+    .token-input-wrap { position:relative; }
+    .token-input-wrap input { padding-right:2.4rem; }
+    .token-toggle { position:absolute; right:.6rem; top:50%; transform:translateY(-50%); background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:.85rem; }
+
+    /* PR success banner inside modal */
+    .pr-result {
+      display:none; margin-top:1rem; padding:.8rem 1rem;
+      border-radius:9px; background:rgba(46,213,115,.1);
+      border:1px solid rgba(46,213,115,.25); color:var(--green);
+      font-size:.82rem; text-align:center; line-height:1.6;
+    }
+    .pr-result.show { display:block; }
+    .pr-result a { color:var(--green); font-weight:700; }
 
     /* ── TOAST ── */
     .toast { position:fixed; bottom:2rem; right:2rem; z-index:300; padding:.62rem 1.15rem; border-radius:10px; font-size:.8rem; font-weight:600; pointer-events:none; opacity:0; transition:opacity .3s,transform .3s; transform:translateY(8px); }
@@ -357,7 +391,11 @@
     <span class="dirty-dot"></span>
     📄 <span class="label">data.json</span>
   </button>
-</div>
+  <button class="ab-btn" id="tokenBtn" onclick="openSettings()"
+    style="border-color:rgba(255,255,255,.15);color:var(--muted);background:transparent;"
+    title="GitHub token settings">
+    <span class="token-dot" id="tokenDot"></span> ⚙
+  </button>
 
 <!-- ── DIRTY BANNER ── -->
 <div class="dirty-banner" id="dirtyBanner">
@@ -497,7 +535,38 @@
     </div>
     <div class="form-actions">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-      <button class="btn-submit" onclick="submitGame()">Record Victory ⚔</button>
+      <button class="btn-submit" onclick="submitGame(false)">Save Locally</button>
+      <button class="btn-pr" id="btnPR" onclick="submitGame(true)">
+        <span class="spin"></span>
+        <span class="btn-pr-label">🔀 Create PR</span>
+      </button>
+    </div>
+    <div class="pr-result" id="prResult"></div>
+  </div>
+</div>
+
+<!-- ── SETTINGS MODAL ── -->
+<div class="modal-backdrop" id="settingsBackdrop" onclick="closeSettingsOutside(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="closeSettings()">✕</button>
+    <div class="modal-title">⚙ GitHub Settings</div>
+    <div class="form-group">
+      <label class="form-label">Personal Access Token</label>
+      <div class="token-input-wrap">
+        <input type="password" id="tokenInput" class="form-control" placeholder="github_pat_…">
+        <button class="token-toggle" onclick="toggleTokenVisibility()" title="Show/hide">👁</button>
+      </div>
+    </div>
+    <div class="settings-note">
+      Required to create Pull Requests directly from the browser.<br>
+      Generate one at <a href="https://github.com/settings/tokens?type=beta" target="_blank">github.com/settings/tokens</a>
+      with <strong>Contents</strong> and <strong>Pull requests</strong> read &amp; write permissions
+      for the <code>TheBattleOfCowHorse</code> repo.<br><br>
+      ⚠ The token is stored in your browser's localStorage — only use this on a trusted device.
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeSettings()">Cancel</button>
+      <button class="btn-submit" onclick="saveToken()">Save Token</button>
     </div>
   </div>
 </div>
@@ -1007,6 +1076,7 @@ function openModal() {
   document.getElementById('fmP2').value='';
   document.getElementById('fmWinner').innerHTML='<option value="">— Select players first —</option>';
   document.getElementById('fmWinner').disabled=true;
+  document.getElementById('prResult').classList.remove('show');
   document.getElementById('modalBackdrop').classList.add('open');
 }
 function closeModal() { document.getElementById('modalBackdrop').classList.remove('open'); }
@@ -1021,7 +1091,7 @@ function updateWinnerOptions() {
   sel.innerHTML=`<option value="">— Select Winner —</option><option value="${p1}">${P[p1].icon} ${p1} (Player 1)</option><option value="${p2}">${P[p2].icon} ${p2} (Player 2)</option>`;
 }
 
-function submitGame() {
+function submitGame(createPR = false) {
   const dateRaw=document.getElementById('fmDate').value;
   const numRaw =document.getElementById('fmNum').value;
   const p1 =document.getElementById('fmP1').value;
@@ -1032,15 +1102,149 @@ function submitGame() {
   const [yy,mm,dd]=dateRaw.split('-');
   const date=`${dd}/${mm}/${yy}`;
   const num=numRaw?Number(numRaw):(DATA.length?Math.max(...DATA.map(r=>r[0]))+1:1);
-  DATA.push([num,date,p1,p2,w]);
-  DATA.sort((a,b)=>a[0]-b[0]);
-  setDirty(true); closeModal(); rebuildAll();
-  showToast(`✓ Game #${num} recorded — ${P[w].icon} ${w} wins! Download data.json to commit.`, 'success');
+  const gameRow=[num,date,p1,p2,w];
+
+  if (createPR) {
+    if (!getToken()) { openSettings(); showToast('Set your GitHub token first','error'); return; }
+    createGamePR(gameRow);
+  } else {
+    DATA.push(gameRow);
+    DATA.sort((a,b)=>a[0]-b[0]);
+    setDirty(true); closeModal(); rebuildAll();
+    showToast(`✓ Game #${num} saved locally — download data.json to commit`, 'success');
+  }
 }
 
 /* ═══════════════════════════
-   TOAST
+   TOKEN SETTINGS
 ═══════════════════════════ */
+const GH_OWNER = 'liverpool1026';
+const GH_REPO  = 'TheBattleOfCowHorse';
+const GH_BASE  = 'master';
+
+function getToken() { return localStorage.getItem('ghToken') || ''; }
+function updateTokenIndicator() {
+  document.getElementById('tokenDot').classList.toggle('set', !!getToken());
+}
+
+function openSettings() {
+  document.getElementById('tokenInput').value = getToken();
+  document.getElementById('settingsBackdrop').classList.add('open');
+}
+function closeSettings() { document.getElementById('settingsBackdrop').classList.remove('open'); }
+function closeSettingsOutside(e) { if(e.target.id==='settingsBackdrop') closeSettings(); }
+function toggleTokenVisibility() {
+  const inp = document.getElementById('tokenInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+function saveToken() {
+  const t = document.getElementById('tokenInput').value.trim();
+  if (t) localStorage.setItem('ghToken', t);
+  else   localStorage.removeItem('ghToken');
+  updateTokenIndicator();
+  closeSettings();
+  showToast(t ? '✓ Token saved' : 'Token cleared', 'success');
+}
+
+/* ═══════════════════════════
+   GITHUB API
+═══════════════════════════ */
+async function ghFetch(path, opts = {}) {
+  const resp = await fetch(`https://api.github.com${path}`, {
+    ...opts,
+    headers: {
+      'Authorization': `Bearer ${getToken()}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(opts.headers || {}),
+    }
+  });
+  const body = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(body.message || `GitHub API ${resp.status}`);
+  return body;
+}
+
+function toBase64Unicode(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+async function createGamePR(gameRow) {
+  const [num, date, p1, p2, w] = gameRow;
+  const btn = document.getElementById('btnPR');
+  const prResult = document.getElementById('prResult');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  prResult.classList.remove('show');
+
+  try {
+    // 1. Get current data.json (content + sha)
+    const fileInfo = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/data.json`);
+    const repoData = JSON.parse(decodeURIComponent(escape(atob(fileInfo.content.replace(/\n/g, '')))));
+    const fileSha  = fileInfo.sha;
+
+    // 2. Get master branch HEAD sha
+    const masterRef = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/git/ref/heads/${GH_BASE}`);
+    const masterSha = masterRef.object.sha;
+
+    // 3. Create new branch
+    const branch = `add-game-${num}-${Date.now()}`;
+    await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/git/refs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: masterSha }),
+    });
+
+    // 4. Build updated data — merge with repo version to avoid overwriting parallel changes
+    const merged = [...repoData];
+    if (!merged.some(r => r[0] === num)) merged.push(gameRow);
+    merged.sort((a, b) => a[0] - b[0]);
+
+    // 5. Commit updated data.json to new branch
+    await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/data.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: `Add game #${num}: ${p1} vs ${p2} — ${P[w].icon} ${w} wins`,
+        content: toBase64Unicode(JSON.stringify(merged, null, 2)),
+        sha: fileSha,
+        branch,
+      }),
+    });
+
+    // 6. Open PR
+    const pr = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/pulls`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: `Game #${num}: ${P[w].icon} ${w} wins (${date})`,
+        head: branch,
+        base: GH_BASE,
+        body: [
+          '## New Battle Record',
+          '',
+          '| | |',
+          '|---|---|',
+          `| **Game #** | ${num} |`,
+          `| **Date** | ${date} |`,
+          `| **Player 1** | ${P[p1].icon} ${p1} |`,
+          `| **Player 2** | ${P[p2].icon} ${p2} |`,
+          `| **Winner** | ${P[w].icon} **${w}** |`,
+          '',
+          '*Auto-generated by the Battle Records webapp*',
+        ].join('\n'),
+      }),
+    });
+
+    prResult.innerHTML = `✅ PR created! <a href="${pr.html_url}" target="_blank">${pr.title} →</a>`;
+    prResult.classList.add('show');
+    showToast('✓ Pull request opened on GitHub', 'success');
+  } catch(e) {
+    showToast(`PR failed: ${e.message}`, 'error');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
 let toastTimer=null;
 function showToast(msg,type='info') {
   const t=document.getElementById('toast');
@@ -1068,6 +1272,7 @@ document.addEventListener('keydown',e=>{
 /* ═══════════════════════════
    START
 ═══════════════════════════ */
+updateTokenIndicator();
 init();
 </script>
 </body>

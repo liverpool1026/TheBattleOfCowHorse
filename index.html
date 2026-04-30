@@ -617,36 +617,36 @@ const DEFAULT_DATA = [
 ];
 
 /* ═══════════════════════════
-   INIT — fetch data.json, fall back to DEFAULT_DATA
+   INIT — fetch data.json on HTTP/S, use embedded data on file://
 ═══════════════════════════ */
 async function init() {
-  // Safety net: always hide loading after 4 seconds max
-  const safetyTimer = setTimeout(() => {
-    if (DATA.length === 0) { DATA = DEFAULT_DATA.map(r=>[...r]); }
-    hideLoading();
-    rebuildAll();
-  }, 4000);
+  const isHttp = location.protocol === 'http:' || location.protocol === 'https:';
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3500);
-    const resp = await fetch('./data.json?v=' + Date.now(), { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const fetched = await resp.json();
-    clearTimeout(safetyTimer);
-    DATA = fetched;
-    loadedJSON = JSON.stringify(DATA);
-    document.getElementById('dataSource').textContent =
-      `📄 data.json · ${DATA.length} records`;
-  } catch(e) {
-    clearTimeout(safetyTimer);
-    // Fallback to embedded data (works offline / file://)
+  if (isHttp) {
+    // Hosted — try to load data.json from the server
+    try {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 5000);
+      const resp = await fetch('./data.json?v=' + Date.now(), { signal: controller.signal });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      DATA = await resp.json();
+      loadedJSON = JSON.stringify(DATA);
+      document.getElementById('dataSource').textContent =
+        `📄 data.json · ${DATA.length} records`;
+    } catch(e) {
+      DATA = DEFAULT_DATA.map(r=>[...r]);
+      loadedJSON = JSON.stringify(DATA);
+      document.getElementById('dataSource').textContent =
+        `📦 Built-in data · ${DATA.length} records`;
+    }
+  } else {
+    // file:// — skip fetch entirely, use embedded data
     DATA = DEFAULT_DATA.map(r=>[...r]);
     loadedJSON = JSON.stringify(DATA);
     document.getElementById('dataSource').textContent =
       `📦 Built-in data · ${DATA.length} records`;
   }
+
   hideLoading();
   rebuildAll();
 }

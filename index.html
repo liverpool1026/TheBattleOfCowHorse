@@ -508,7 +508,8 @@
       </div>
       <div class="form-group">
         <label class="form-label">Game #</label>
-        <input type="number" id="fmNum" class="form-control" placeholder="Auto">
+        <input type="number" id="fmNum" class="form-control" readonly
+          style="opacity:.5;cursor:default;">
       </div>
       <div class="form-group">
         <label class="form-label">Player 1</label>
@@ -1095,7 +1096,6 @@ function updateWinnerOptions() {
 
 function submitGame(createPR = false) {
   const dateRaw=document.getElementById('fmDate').value;
-  const numRaw =document.getElementById('fmNum').value;
   const p1 =document.getElementById('fmP1').value;
   const p2 =document.getElementById('fmP2').value;
   const w  =document.getElementById('fmWinner').value;
@@ -1103,7 +1103,7 @@ function submitGame(createPR = false) {
   if(p1===p2){ showToast('Player 1 and Player 2 must be different','error'); return; }
   const [yy,mm,dd]=dateRaw.split('-');
   const date=`${dd}/${mm}/${yy}`;
-  const num=numRaw?Number(numRaw):(DATA.length?Math.max(...DATA.map(r=>r[0]))+1:1);
+  const num = Number(document.getElementById('fmNum').value);
   const gameRow=[num,date,p1,p2,w];
 
   if (createPR) {

@@ -2,6 +2,12 @@
 
 <div align="center">
 
+### 👑 [太后御览 · Enter the Empress's Court](https://liverpool1026.github.io/TheBattleOfCowHorse/) 👑
+
+</div>
+
+<div align="center">
+
 ### 👑 此仓库的真正太后 · The True 太后 of This Repo 👑
 
 ```

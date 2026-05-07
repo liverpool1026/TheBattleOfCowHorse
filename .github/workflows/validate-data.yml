@@ -10,6 +10,48 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check data.json length increases by exactly 1
+        run: |
+          python3 - <<'EOF'
+          import json, subprocess, sys
+
+          base_ref = "${{ github.event.pull_request.base.ref }}"
+
+          try:
+              base_json = subprocess.check_output(
+                  ["git", "show", f"origin/{base_ref}:data.json"]
+              )
+              base_data = json.loads(base_json)
+          except Exception as e:
+              print(f"ERROR: Could not read base branch data.json — {e}")
+              sys.exit(1)
+
+          try:
+              with open("data.json", encoding="utf-8") as f:
+                  pr_data = json.load(f)
+          except Exception as e:
+              print(f"ERROR: Could not read PR data.json — {e}")
+              sys.exit(1)
+
+          base_len = len(base_data)
+          pr_len = len(pr_data)
+          diff = pr_len - base_len
+
+          if diff < 0:
+              print(f"❌ data.json length check failed: base has {base_len} records, PR has {pr_len} records ({abs(diff)} record(s) removed). Expected exactly +1.")
+              sys.exit(1)
+          elif diff == 0:
+              print(f"❌ data.json length check failed: base has {base_len} records, PR has {pr_len} records (no new record added). Expected exactly +1.")
+              sys.exit(1)
+          elif diff > 1:
+              print(f"❌ data.json length check failed: base has {base_len} records, PR has {pr_len} records ({diff} records added). Expected exactly +1.")
+              sys.exit(1)
+          else:
+              print(f"✅ data.json length check passed: {base_len} → {pr_len} (+1)")
+          EOF
 
       - name: Validate data.json
         run: |

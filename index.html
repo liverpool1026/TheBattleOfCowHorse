@@ -22,10 +22,12 @@
       --muted:   #8A7060;
       --green:   #2ed573;
       --red:     #ff4757;
+      --font-body: 'Georgia','Segoe UI',serif;
+      --font-display: 'Cinzel','Georgia','Segoe UI',serif;
     }
     * { margin:0; padding:0; box-sizing:border-box; }
     body {
-      font-family:'Georgia','Segoe UI',serif;
+      font-family:var(--font-body);
       background:var(--bg); color:var(--text);
       min-height:100vh; overflow-x:hidden;
     }
@@ -36,7 +38,7 @@
     .table-top-title,
     .modal-title,
     .loading-title {
-      font-family:'Cinzel','Georgia','Segoe UI',serif;
+      font-family:var(--font-display);
     }
     body::before {
       content:''; position:fixed; inset:0; pointer-events:none;

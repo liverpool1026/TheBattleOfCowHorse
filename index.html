@@ -348,6 +348,8 @@
     }
     .pr-result.show { display:block; }
     .pr-result a { color:var(--green); font-weight:700; }
+    .pr-result.error { background:rgba(255,71,87,.1); border-color:rgba(255,71,87,.3); color:var(--red); }
+    .pr-result.error a, .pr-result.error button { color:var(--horse); }
 
     /* ── MULTI-GAME MODAL ── */
     #addGameModal { width:min(640px,96vw); max-height:90vh; overflow-y:auto; }
@@ -1079,19 +1081,20 @@ function deleteRow(num) {
 /* ═══════════════════════════
    MODAL
 ═══════════════════════════ */
-function nextGameNum(offset=0) {
-  return (DATA.length ? Math.max(...DATA.map(r=>r[0])) + 1 : 1) + offset;
+function nextGameNum() {
+  return DATA.length ? Math.max(...DATA.map(r=>r[0])) + 1 : 1;
 }
 
 function openModal() {
   const today=new Date().toISOString().slice(0,10);
   modalGames=[{date:today, p1:'', p2:'', winner:''}];
-  document.getElementById('prResult').classList.remove('show');
+  document.getElementById('prResult').classList.remove('show', 'error');
   renderModalGames();
   document.getElementById('modalBackdrop').classList.add('open');
 }
 
 function renderModalGames() {
+  const base = nextGameNum();
   const playerOpts = v => PLAYERS.map(p =>
     `<option value="${p}"${v===p?' selected':''}>${P[p].icon} ${p} (${P[p].label})</option>`
   ).join('');
@@ -1107,26 +1110,26 @@ function renderModalGames() {
     }
     return `<div class="game-entry">
       <div class="game-entry-header">
-        <span class="game-num-badge">GAME #${nextGameNum(i)}</span>
+        <span class="game-num-badge">GAME #${base + i}</span>
         <input type="date" class="form-control game-entry-date" value="${g.date}"
           onchange="updateModalGame(${i},'date',this.value)">
-        <button class="remove-game-btn" onclick="removeGameRow(${i})"
-          ${modalGames.length===1?'disabled':''} title="Remove">✕</button>
+        <button type="button" class="remove-game-btn" onclick="removeGameRow(${i})"
+          ${modalGames.length===1?'disabled':''} title="Remove" aria-label="Remove game ${i+1}">✕</button>
       </div>
       <div class="game-entry-fields">
         <div class="form-group">
-          <label class="form-label">Player 1</label>
-          <select class="form-control" onchange="updateModalGame(${i},'p1',this.value)">
+          <label class="form-label" for="p1-${i}">Player 1</label>
+          <select id="p1-${i}" class="form-control" onchange="updateModalGame(${i},'p1',this.value)">
             <option value="">— Select —</option>${playerOpts(g.p1)}</select>
         </div>
         <div class="form-group">
-          <label class="form-label">Player 2</label>
-          <select class="form-control" onchange="updateModalGame(${i},'p2',this.value)">
+          <label class="form-label" for="p2-${i}">Player 2</label>
+          <select id="p2-${i}" class="form-control" onchange="updateModalGame(${i},'p2',this.value)">
             <option value="">— Select —</option>${playerOpts(g.p2)}</select>
         </div>
         <div class="form-group">
-          <label class="form-label">Winner</label>
-          <select class="form-control"${winnerDis}
+          <label class="form-label" for="winner-${i}">Winner</label>
+          <select id="winner-${i}" class="form-control"${winnerDis}
             onchange="updateModalGame(${i},'winner',this.value)">${winnerOpts}</select>
         </div>
       </div>
@@ -1160,6 +1163,7 @@ function closeModal() { document.getElementById('modalBackdrop').classList.remov
 function closeModalOutside(e) { if(e.target.id==='modalBackdrop') closeModal(); }
 
 function submitGame(createPR = false) {
+  const base = nextGameNum();
   const gameRows = [];
   for (let i = 0; i < modalGames.length; i++) {
     const {date: dateRaw, p1, p2, winner: w} = modalGames[i];
@@ -1170,7 +1174,7 @@ function submitGame(createPR = false) {
       showToast(`Game ${i+1}: Player 1 and Player 2 must be different`, 'error'); return;
     }
     const [yy,mm,dd]=dateRaw.split('-');
-    gameRows.push([nextGameNum(i), `${dd}/${mm}/${yy}`, p1, p2, w]);
+    gameRows.push([base + i, `${dd}/${mm}/${yy}`, p1, p2, w]);
   }
 
   if (createPR) {
@@ -1245,20 +1249,24 @@ async function createGamePR(gameRows) {
   btn.disabled = true;
   prResult.classList.remove('show');
 
-  const firstNum = gameRows[0][0];
-  const lastNum  = gameRows[gameRows.length-1][0];
-
   try {
     // 1. Get current data.json (content + sha)
     const fileInfo = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/data.json`);
     const repoData = JSON.parse(decodeURIComponent(escape(atob(fileInfo.content.replace(/\n/g, '')))));
     const fileSha  = fileInfo.sha;
 
-    // 2. Get master branch HEAD sha
+    // 2. Re-number gameRows from repo's current max to avoid collisions with parallel submissions
+    const repoBase = repoData.length ? Math.max(...repoData.map(r => r[0])) + 1 : 1;
+    gameRows = gameRows.map((row, i) => [repoBase + i, ...row.slice(1)]);
+
+    const firstNum = gameRows[0][0];
+    const lastNum  = gameRows[gameRows.length-1][0];
+
+    // 3. Get master branch HEAD sha
     const masterRef = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/git/ref/heads/${GH_BASE}`);
     const masterSha = masterRef.object.sha;
 
-    // 3. Create new branch
+    // 4. Create new branch
     const suffix = gameRows.length===1 ? `${firstNum}` : `${firstNum}-${lastNum}`;
     const branch = `add-game-${suffix}-${Date.now()}`;
     await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/git/refs`, {
@@ -1267,12 +1275,10 @@ async function createGamePR(gameRows) {
       body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: masterSha }),
     });
 
-    // 4. Build updated data — merge with repo version to avoid overwriting parallel changes
-    const merged = [...repoData];
-    gameRows.forEach(row => { if (!merged.some(r => r[0]===row[0])) merged.push(row); });
+    // 5. Commit updated data.json to new branch
+    const merged = [...repoData, ...gameRows];
     merged.sort((a, b) => a[0] - b[0]);
 
-    // 5. Commit updated data.json to new branch
     const commitMsg = gameRows.length===1
       ? `Add game #${firstNum}: ${gameRows[0][2]} vs ${gameRows[0][3]} — ${P[gameRows[0][4]].icon} ${gameRows[0][4]} wins`
       : `Add games #${firstNum}–${lastNum}: ${gameRows.length} new battle records`;
@@ -1329,12 +1335,9 @@ async function createGamePR(gameRows) {
       ? 'Invalid token — click ⚙ to update it.'
       : msg;
     showToast(`PR failed: ${hint}`, 'error');
-    document.getElementById('prResult').innerHTML =
-      `❌ ${hint} <button onclick="openSettings()" style="background:transparent;border:none;color:var(--horse);cursor:pointer;text-decoration:underline;font-size:.8rem">⚙ Fix token</button>`;
-    document.getElementById('prResult').style.background = 'rgba(255,71,87,.1)';
-    document.getElementById('prResult').style.borderColor = 'rgba(255,71,87,.3)';
-    document.getElementById('prResult').style.color = 'var(--red)';
-    document.getElementById('prResult').classList.add('show');
+    prResult.innerHTML =
+      `❌ ${hint} <button onclick="openSettings()" style="background:transparent;border:none;cursor:pointer;text-decoration:underline;font-size:.8rem">⚙ Fix token</button>`;
+    prResult.classList.add('show', 'error');
   } finally {
     btn.classList.remove('loading');
     btn.disabled = false;

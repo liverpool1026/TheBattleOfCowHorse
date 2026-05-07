@@ -479,7 +479,7 @@
     <table>
       <thead>
         <tr>
-          <th onclick="sortBy('num')"  data-col="num"  class="active"># <span id="si-num">↑</span></th>
+          <th onclick="sortBy('num')"  data-col="num"  class="active"># <span id="si-num">↓</span></th>
           <th onclick="sortBy('date')" data-col="date">Date <span id="si-date">↕</span></th>
           <th class="no-sort">Player 1</th>
           <th class="no-sort">Player 2</th>
@@ -607,7 +607,7 @@ let loadedJSON = '[]';   // JSON string of what was last fetched from data.json
 let isDirty = false;
 
 let view = [];
-let sortCol='num', sortDir=1;
+let sortCol='num', sortDir=-1;
 let page=1;
 const PER_PAGE=20;
 let pieChart=null, barChart=null;

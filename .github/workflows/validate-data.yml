@@ -13,7 +13,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check data.json length increases by exactly 1
+      - name: Check data.json length increases by at least 1
         run: |
           python3 - <<'EOF'
           import json, subprocess, sys
@@ -41,16 +41,29 @@ jobs:
           diff = pr_len - base_len
 
           if diff < 0:
-              print(f"❌ data.json length check failed: base has {base_len} records, PR has {pr_len} records ({abs(diff)} record(s) removed). Expected exactly +1.")
+              print(f"❌ data.json length check failed: base has {base_len} records, PR has {pr_len} records ({abs(diff)} record(s) removed). Expected at least +1.")
               sys.exit(1)
           elif diff == 0:
-              print(f"❌ data.json length check failed: base has {base_len} records, PR has {pr_len} records (no new record added). Expected exactly +1.")
-              sys.exit(1)
-          elif diff > 1:
-              print(f"❌ data.json length check failed: base has {base_len} records, PR has {pr_len} records ({diff} records added). Expected exactly +1.")
+              print(f"❌ data.json length check failed: base has {base_len} records, PR has {pr_len} records (no new record added). Expected at least +1.")
               sys.exit(1)
           else:
-              print(f"✅ data.json length check passed: {base_len} → {pr_len} (+1)")
+              print(f"✅ data.json length check passed: {base_len} → {pr_len} (+{diff})")
+
+          # Check that new game numbers are contiguous
+          base_nums = {row[0] for row in base_data}
+          new_rows = [row for row in pr_data if row[0] not in base_nums]
+          new_nums = sorted(row[0] for row in new_rows)
+
+          if len(new_nums) != diff:
+              print(f"❌ Continuity check failed: expected {diff} new game number(s), found {len(new_nums)} unique new game number(s).")
+              sys.exit(1)
+
+          expected = list(range(new_nums[0], new_nums[0] + diff))
+          if new_nums != expected:
+              print(f"❌ Continuity check failed: new game numbers {new_nums} are not contiguous (expected {expected}).")
+              sys.exit(1)
+
+          print(f"✅ Continuity check passed: new game number(s) {new_nums} are contiguous.")
           EOF
 
       - name: Validate data.json

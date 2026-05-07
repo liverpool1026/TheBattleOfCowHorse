@@ -349,6 +349,21 @@
     .pr-result.show { display:block; }
     .pr-result a { color:var(--green); font-weight:700; }
 
+    /* ── MULTI-GAME MODAL ── */
+    #addGameModal { width:min(640px,96vw); max-height:90vh; overflow-y:auto; }
+    .games-list { display:flex; flex-direction:column; gap:.7rem; margin-bottom:.7rem; }
+    .game-entry { border:1px solid rgba(255,215,0,.14); border-radius:10px; padding:.85rem .9rem; background:rgba(255,255,255,.02); }
+    .game-entry-header { display:flex; align-items:center; gap:.55rem; margin-bottom:.6rem; }
+    .game-num-badge { font-size:.65rem; color:var(--gold); letter-spacing:.1rem; font-weight:700; white-space:nowrap; font-family:var(--font-display); }
+    .game-entry-date { flex:1; }
+    .game-entry-fields { display:grid; grid-template-columns:1fr 1fr 1fr; gap:.5rem; }
+    .remove-game-btn { background:transparent; border:1px solid rgba(255,71,87,.22); border-radius:5px; color:var(--red); padding:.18rem .42rem; font-size:.7rem; cursor:pointer; transition:all .18s; line-height:1; font-family:inherit; flex-shrink:0; }
+    .remove-game-btn:hover { background:rgba(255,71,87,.15); border-color:var(--red); }
+    .remove-game-btn:disabled { opacity:.25; cursor:not-allowed; }
+    .add-game-row-btn { width:100%; padding:.44rem; border-radius:8px; background:transparent; border:1px dashed rgba(255,215,0,.22); color:var(--muted); font-size:.76rem; cursor:pointer; transition:all .2s; margin-bottom:.9rem; font-family:inherit; }
+    .add-game-row-btn:hover { border-color:rgba(255,215,0,.5); color:var(--gold); }
+    @media(max-width:540px) { .game-entry-fields { grid-template-columns:1fr; } }
+
     /* ── TOAST ── */
     .toast { position:fixed; bottom:2rem; right:2rem; z-index:300; padding:.62rem 1.15rem; border-radius:10px; font-size:.8rem; font-weight:600; pointer-events:none; opacity:0; transition:opacity .3s,transform .3s; transform:translateY(8px); }
     .toast.show { opacity:1; transform:translateY(0); }
@@ -518,44 +533,11 @@
 
 <!-- ── ADD GAME MODAL ── -->
 <div class="modal-backdrop" id="modalBackdrop" onclick="closeModalOutside(event)">
-  <div class="modal">
+  <div class="modal" id="addGameModal">
     <button class="modal-close" onclick="closeModal()">✕</button>
-    <div class="modal-title">⚔ Add New Game</div>
-    <div class="form-grid">
-      <div class="form-group">
-        <label class="form-label">Date</label>
-        <input type="date" id="fmDate" class="form-control">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Game #</label>
-        <input type="number" id="fmNum" class="form-control" readonly
-          style="opacity:.5;cursor:default;">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Player 1</label>
-        <select id="fmP1" class="form-control" onchange="updateWinnerOptions()">
-          <option value="">— Select —</option>
-          <option value="牛">🐂 牛 (Bull)</option>
-          <option value="马">🐴 马 (Horse)</option>
-          <option value="太后">👑 太后 (Empress)</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Player 2</label>
-        <select id="fmP2" class="form-control" onchange="updateWinnerOptions()">
-          <option value="">— Select —</option>
-          <option value="牛">🐂 牛 (Bull)</option>
-          <option value="马">🐴 马 (Horse)</option>
-          <option value="太后">👑 太后 (Empress)</option>
-        </select>
-      </div>
-      <div class="form-group full">
-        <label class="form-label">Winner</label>
-        <select id="fmWinner" class="form-control" disabled>
-          <option value="">— Select players first —</option>
-        </select>
-      </div>
-    </div>
+    <div class="modal-title">⚔ Add New Game(s)</div>
+    <div class="games-list" id="gamesList"></div>
+    <button class="add-game-row-btn" onclick="addGameRow()">＋ Add another game</button>
     <div class="form-actions">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
       <button class="btn-submit" onclick="submitGame(false)">Save Locally</button>
@@ -625,6 +607,7 @@ let sortCol='num', sortDir=-1;
 let page=1;
 const PER_PAGE=20;
 let pieChart=null, barChart=null;
+let modalGames=[];
 
 /* ═══════════════════════════
    FALLBACK DATA (always works offline / file://)
@@ -1096,49 +1079,109 @@ function deleteRow(num) {
 /* ═══════════════════════════
    MODAL
 ═══════════════════════════ */
+function nextGameNum(offset=0) {
+  return (DATA.length ? Math.max(...DATA.map(r=>r[0])) + 1 : 1) + offset;
+}
+
 function openModal() {
-  const today=new Date();
-  document.getElementById('fmDate').value=today.toISOString().slice(0,10);
-  document.getElementById('fmNum').value=DATA.length?Math.max(...DATA.map(r=>r[0]))+1:1;
-  document.getElementById('fmP1').value='';
-  document.getElementById('fmP2').value='';
-  document.getElementById('fmWinner').innerHTML='<option value="">— Select players first —</option>';
-  document.getElementById('fmWinner').disabled=true;
+  const today=new Date().toISOString().slice(0,10);
+  modalGames=[{date:today, p1:'', p2:'', winner:''}];
   document.getElementById('prResult').classList.remove('show');
+  renderModalGames();
   document.getElementById('modalBackdrop').classList.add('open');
 }
+
+function renderModalGames() {
+  const playerOpts = v => PLAYERS.map(p =>
+    `<option value="${p}"${v===p?' selected':''}>${P[p].icon} ${p} (${P[p].label})</option>`
+  ).join('');
+  document.getElementById('gamesList').innerHTML = modalGames.map((g, i) => {
+    let winnerOpts, winnerDis;
+    if (!g.p1||!g.p2||g.p1===g.p2) {
+      winnerOpts='<option value="">— Select players first —</option>'; winnerDis=' disabled';
+    } else {
+      winnerOpts=`<option value="">— Select Winner —</option>`
+        +`<option value="${g.p1}"${g.winner===g.p1?' selected':''}>${P[g.p1].icon} ${g.p1} (P1)</option>`
+        +`<option value="${g.p2}"${g.winner===g.p2?' selected':''}>${P[g.p2].icon} ${g.p2} (P2)</option>`;
+      winnerDis='';
+    }
+    return `<div class="game-entry">
+      <div class="game-entry-header">
+        <span class="game-num-badge">GAME #${nextGameNum(i)}</span>
+        <input type="date" class="form-control game-entry-date" value="${g.date}"
+          onchange="updateModalGame(${i},'date',this.value)">
+        <button class="remove-game-btn" onclick="removeGameRow(${i})"
+          ${modalGames.length===1?'disabled':''} title="Remove">✕</button>
+      </div>
+      <div class="game-entry-fields">
+        <div class="form-group">
+          <label class="form-label">Player 1</label>
+          <select class="form-control" onchange="updateModalGame(${i},'p1',this.value)">
+            <option value="">— Select —</option>${playerOpts(g.p1)}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Player 2</label>
+          <select class="form-control" onchange="updateModalGame(${i},'p2',this.value)">
+            <option value="">— Select —</option>${playerOpts(g.p2)}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Winner</label>
+          <select class="form-control"${winnerDis}
+            onchange="updateModalGame(${i},'winner',this.value)">${winnerOpts}</select>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateModalGame(idx, field, value) {
+  modalGames[idx][field]=value;
+  if ((field==='p1'||field==='p2') && modalGames[idx].winner &&
+      modalGames[idx].winner!==modalGames[idx].p1 &&
+      modalGames[idx].winner!==modalGames[idx].p2) {
+    modalGames[idx].winner='';
+  }
+  renderModalGames();
+}
+
+function addGameRow() {
+  const prev=modalGames[modalGames.length-1];
+  modalGames.push({date:prev.date, p1:'', p2:'', winner:''});
+  renderModalGames();
+}
+
+function removeGameRow(idx) {
+  if(modalGames.length<=1) return;
+  modalGames.splice(idx,1);
+  renderModalGames();
+}
+
 function closeModal() { document.getElementById('modalBackdrop').classList.remove('open'); }
 function closeModalOutside(e) { if(e.target.id==='modalBackdrop') closeModal(); }
 
-function updateWinnerOptions() {
-  const p1=document.getElementById('fmP1').value;
-  const p2=document.getElementById('fmP2').value;
-  const sel=document.getElementById('fmWinner');
-  if(!p1||!p2||p1===p2){ sel.innerHTML='<option value="">— Select players first —</option>'; sel.disabled=true; return; }
-  sel.disabled=false;
-  sel.innerHTML=`<option value="">— Select Winner —</option><option value="${p1}">${P[p1].icon} ${p1} (Player 1)</option><option value="${p2}">${P[p2].icon} ${p2} (Player 2)</option>`;
-}
-
 function submitGame(createPR = false) {
-  const dateRaw=document.getElementById('fmDate').value;
-  const p1 =document.getElementById('fmP1').value;
-  const p2 =document.getElementById('fmP2').value;
-  const w  =document.getElementById('fmWinner').value;
-  if(!dateRaw||!p1||!p2||!w){ showToast('Please fill in all fields','error'); return; }
-  if(p1===p2){ showToast('Player 1 and Player 2 must be different','error'); return; }
-  const [yy,mm,dd]=dateRaw.split('-');
-  const date=`${dd}/${mm}/${yy}`;
-  const num = Number(document.getElementById('fmNum').value);
-  const gameRow=[num,date,p1,p2,w];
+  const gameRows = [];
+  for (let i = 0; i < modalGames.length; i++) {
+    const {date: dateRaw, p1, p2, winner: w} = modalGames[i];
+    if (!dateRaw||!p1||!p2||!w) {
+      showToast(`Game ${i+1}: please fill in all fields`, 'error'); return;
+    }
+    if (p1===p2) {
+      showToast(`Game ${i+1}: Player 1 and Player 2 must be different`, 'error'); return;
+    }
+    const [yy,mm,dd]=dateRaw.split('-');
+    gameRows.push([nextGameNum(i), `${dd}/${mm}/${yy}`, p1, p2, w]);
+  }
 
   if (createPR) {
     if (!getToken()) { openSettings(); showToast('Set your GitHub token first','error'); return; }
-    createGamePR(gameRow);
+    createGamePR(gameRows);
   } else {
-    DATA.push(gameRow);
+    gameRows.forEach(row => DATA.push(row));
     DATA.sort((a,b)=>a[0]-b[0]);
     setDirty(true); closeModal(); rebuildAll();
-    showToast(`✓ Game #${num} saved locally — download data.json to commit`, 'success');
+    const n=gameRows.length;
+    showToast(`✓ ${n} game${n>1?'s':''} saved locally — download data.json to commit`, 'success');
   }
 }
 
@@ -1195,13 +1238,15 @@ function toBase64Unicode(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
 
-async function createGamePR(gameRow) {
-  const [num, date, p1, p2, w] = gameRow;
+async function createGamePR(gameRows) {
   const btn = document.getElementById('btnPR');
   const prResult = document.getElementById('prResult');
   btn.classList.add('loading');
   btn.disabled = true;
   prResult.classList.remove('show');
+
+  const firstNum = gameRows[0][0];
+  const lastNum  = gameRows[gameRows.length-1][0];
 
   try {
     // 1. Get current data.json (content + sha)
@@ -1214,7 +1259,8 @@ async function createGamePR(gameRow) {
     const masterSha = masterRef.object.sha;
 
     // 3. Create new branch
-    const branch = `add-game-${num}-${Date.now()}`;
+    const suffix = gameRows.length===1 ? `${firstNum}` : `${firstNum}-${lastNum}`;
+    const branch = `add-game-${suffix}-${Date.now()}`;
     await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/git/refs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1223,15 +1269,18 @@ async function createGamePR(gameRow) {
 
     // 4. Build updated data — merge with repo version to avoid overwriting parallel changes
     const merged = [...repoData];
-    if (!merged.some(r => r[0] === num)) merged.push(gameRow);
+    gameRows.forEach(row => { if (!merged.some(r => r[0]===row[0])) merged.push(row); });
     merged.sort((a, b) => a[0] - b[0]);
 
     // 5. Commit updated data.json to new branch
+    const commitMsg = gameRows.length===1
+      ? `Add game #${firstNum}: ${gameRows[0][2]} vs ${gameRows[0][3]} — ${P[gameRows[0][4]].icon} ${gameRows[0][4]} wins`
+      : `Add games #${firstNum}–${lastNum}: ${gameRows.length} new battle records`;
     await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/data.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: `Add game #${num}: ${p1} vs ${p2} — ${P[w].icon} ${w} wins`,
+        message: commitMsg,
         content: toBase64Unicode(JSON.stringify(merged, null, 2)),
         sha: fileSha,
         branch,
@@ -1239,32 +1288,39 @@ async function createGamePR(gameRow) {
     });
 
     // 6. Open PR
+    const prTitle = gameRows.length===1
+      ? `Game #${firstNum}: ${P[gameRows[0][4]].icon} ${gameRows[0][4]} wins (${gameRows[0][1]})`
+      : `Games #${firstNum}–${lastNum}: ${gameRows.length} new battle records (${gameRows[0][1]})`;
+    const prBody = gameRows.length===1
+      ? [
+          '## New Battle Record', '',
+          '| | |', '|---|---|',
+          `| **Game #** | ${firstNum} |`,
+          `| **Date** | ${gameRows[0][1]} |`,
+          `| **Player 1** | ${P[gameRows[0][2]].icon} ${gameRows[0][2]} |`,
+          `| **Player 2** | ${P[gameRows[0][3]].icon} ${gameRows[0][3]} |`,
+          `| **Winner** | ${P[gameRows[0][4]].icon} **${gameRows[0][4]}** |`,
+          '', '*Auto-generated by the Battle Records webapp*',
+        ].join('\n')
+      : [
+          `## ${gameRows.length} New Battle Records`, '',
+          '| Game # | Date | Player 1 | Player 2 | Winner |',
+          '|--------|------|----------|----------|--------|',
+          ...gameRows.map(([n,d,p1,p2,w]) =>
+            `| ${n} | ${d} | ${P[p1].icon} ${p1} | ${P[p2].icon} ${p2} | ${P[w].icon} **${w}** |`),
+          '', '*Auto-generated by the Battle Records webapp*',
+        ].join('\n');
+
     const pr = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/pulls`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: `Game #${num}: ${P[w].icon} ${w} wins (${date})`,
-        head: branch,
-        base: GH_BASE,
-        body: [
-          '## New Battle Record',
-          '',
-          '| | |',
-          '|---|---|',
-          `| **Game #** | ${num} |`,
-          `| **Date** | ${date} |`,
-          `| **Player 1** | ${P[p1].icon} ${p1} |`,
-          `| **Player 2** | ${P[p2].icon} ${p2} |`,
-          `| **Winner** | ${P[w].icon} **${w}** |`,
-          '',
-          '*Auto-generated by the Battle Records webapp*',
-        ].join('\n'),
-      }),
+      body: JSON.stringify({ title: prTitle, head: branch, base: GH_BASE, body: prBody }),
     });
 
     prResult.innerHTML = `✅ PR created! <a href="${pr.html_url}" target="_blank">${pr.title} →</a>`;
     prResult.classList.add('show');
-    showToast('✓ Pull request opened on GitHub', 'success');
+    const n = gameRows.length;
+    showToast(`✓ Pull request opened on GitHub (${n} game${n>1?'s':''})`, 'success');
   } catch(e) {
     const msg = e.message || '';
     const hint = msg.includes('not accessible') || msg.includes('Resource') || msg.includes('403')

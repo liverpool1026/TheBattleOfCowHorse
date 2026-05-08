@@ -13,7 +13,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check data.json length increases by exactly 1
+      - name: Check data.json length increases by at least 1
         run: |
           python3 - <<'EOF'
           import json, subprocess, sys
@@ -41,16 +41,60 @@ jobs:
           diff = pr_len - base_len
 
           if diff < 0:
-              print(f"❌ data.json length check failed: base has {base_len} records, PR has {pr_len} records ({abs(diff)} record(s) removed). Expected exactly +1.")
+              print(f"❌ data.json length check failed: base has {base_len} records, PR has {pr_len} records ({abs(diff)} record(s) removed). Expected at least +1.")
               sys.exit(1)
           elif diff == 0:
-              print(f"❌ data.json length check failed: base has {base_len} records, PR has {pr_len} records (no new record added). Expected exactly +1.")
-              sys.exit(1)
-          elif diff > 1:
-              print(f"❌ data.json length check failed: base has {base_len} records, PR has {pr_len} records ({diff} records added). Expected exactly +1.")
+              print(f"❌ data.json length check failed: base has {base_len} records, PR has {pr_len} records (no new record added). Expected at least +1.")
               sys.exit(1)
           else:
-              print(f"✅ data.json length check passed: {base_len} → {pr_len} (+1)")
+              print(f"✅ data.json length check passed: {base_len} → {pr_len} (+{diff})")
+
+          # Guard against malformed rows before touching row[0]
+          for src, dataset in [("base", base_data), ("PR", pr_data)]:
+              for i, row in enumerate(dataset):
+                  if not isinstance(row, list) or len(row) == 0:
+                      print(f"❌ {src} data.json row {i+1} is malformed: {row!r}")
+                      sys.exit(1)
+                  if not isinstance(row[0], int):
+                      print(f"❌ {src} data.json row {i+1} game number is not an integer: {row[0]!r}")
+                      sys.exit(1)
+
+          # Assert data.json is append-only: every existing row must be present and unchanged
+          pr_by_num = {row[0]: row for row in pr_data}
+          for row in base_data:
+              num = row[0]
+              if num not in pr_by_num:
+                  print(f"❌ Immutability check failed: game #{num} exists in base but is missing from PR.")
+                  sys.exit(1)
+              if pr_by_num[num] != row:
+                  print(f"❌ Immutability check failed: game #{num} was modified (base: {row!r}, PR: {pr_by_num[num]!r}).")
+                  sys.exit(1)
+          print(f"✅ Immutability check passed: all {base_len} existing record(s) are unchanged.")
+
+          # Check that new game numbers are contiguous
+          base_nums = {row[0] for row in base_data}
+          new_rows = [row for row in pr_data if row[0] not in base_nums]
+          new_nums = sorted(set(row[0] for row in new_rows))
+
+          if not new_nums:
+              print(f"❌ Continuity check failed: no new game numbers found among the {diff} added row(s); game numbers may all collide with existing entries.")
+              sys.exit(1)
+
+          if len(new_nums) != diff:
+              print(f"❌ Continuity check failed: expected {diff} new game number(s), found {len(new_nums)} unique new game number(s).")
+              sys.exit(1)
+
+          expected = list(range(new_nums[0], new_nums[0] + diff))
+          if new_nums != expected:
+              print(f"❌ Continuity check failed: new game numbers {new_nums} are not contiguous (expected {expected}).")
+              sys.exit(1)
+
+          expected_start = (max(base_nums) + 1) if base_nums else 1
+          if new_nums[0] != expected_start:
+              print(f"❌ Continuity check failed: new game numbers start at {new_nums[0]} but expected {expected_start} (current max + 1).")
+              sys.exit(1)
+
+          print(f"✅ Continuity check passed: new game number(s) {new_nums} are contiguous.")
           EOF
 
       - name: Validate data.json

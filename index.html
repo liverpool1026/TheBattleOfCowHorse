@@ -610,6 +610,7 @@ let page=1;
 const PER_PAGE=20;
 let pieChart=null, barChart=null;
 let modalGames=[];
+let modalBase=1;
 
 /* ═══════════════════════════
    FALLBACK DATA (always works offline / file://)
@@ -1088,13 +1089,14 @@ function nextGameNum() {
 function openModal() {
   const today=new Date().toISOString().slice(0,10);
   modalGames=[{date:today, p1:'', p2:'', winner:''}];
+  modalBase=nextGameNum();
   document.getElementById('prResult').classList.remove('show', 'error');
   renderModalGames();
   document.getElementById('modalBackdrop').classList.add('open');
 }
 
 function renderModalGames() {
-  const base = nextGameNum();
+  const base = modalBase;
   const playerOpts = v => PLAYERS.map(p =>
     `<option value="${p}"${v===p?' selected':''}>${P[p].icon} ${p} (${P[p].label})</option>`
   ).join('');
@@ -1164,7 +1166,7 @@ function closeModal() { document.getElementById('modalBackdrop').classList.remov
 function closeModalOutside(e) { if(e.target.id==='modalBackdrop') closeModal(); }
 
 function submitGame(createPR = false) {
-  const base = nextGameNum();
+  const base = modalBase;
   const gameRows = [];
   for (let i = 0; i < modalGames.length; i++) {
     const {date: dateRaw, p1, p2, winner: w} = modalGames[i];
@@ -1252,7 +1254,7 @@ async function createGamePR(gameRows) {
   const prResult = document.getElementById('prResult');
   btn.classList.add('loading');
   btn.disabled = true;
-  prResult.classList.remove('show');
+  prResult.classList.remove('show', 'error');
 
   try {
     // 1. Get current data.json (content + sha)

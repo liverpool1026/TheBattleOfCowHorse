@@ -70,6 +70,11 @@ jobs:
               print(f"❌ Continuity check failed: new game numbers {new_nums} are not contiguous (expected {expected}).")
               sys.exit(1)
 
+          expected_start = (max(base_nums) + 1) if base_nums else 1
+          if new_nums[0] != expected_start:
+              print(f"❌ Continuity check failed: new game numbers start at {new_nums[0]} but expected {expected_start} (current max + 1).")
+              sys.exit(1)
+
           print(f"✅ Continuity check passed: new game number(s) {new_nums} are contiguous.")
           EOF
 

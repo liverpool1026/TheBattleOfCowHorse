@@ -1082,7 +1082,7 @@ function deleteRow(num) {
    MODAL
 ═══════════════════════════ */
 function nextGameNum() {
-  return DATA.length ? Math.max(...DATA.map(r=>r[0])) + 1 : 1;
+  return DATA.length ? DATA.reduce((m, r) => Math.max(m, r[0]), 0) + 1 : 1;
 }
 
 function openModal() {
@@ -1112,9 +1112,10 @@ function renderModalGames() {
       <div class="game-entry-header">
         <span class="game-num-badge">GAME #${base + i}</span>
         <input type="date" class="form-control game-entry-date" value="${g.date}"
+          aria-label="Date for game ${base+i}"
           onchange="updateModalGame(${i},'date',this.value)">
         <button type="button" class="remove-game-btn" onclick="removeGameRow(${i})"
-          ${modalGames.length===1?'disabled':''} title="Remove" aria-label="Remove game ${i+1}">✕</button>
+          ${modalGames.length===1?'disabled':''} title="Remove" aria-label="Remove game ${base+i}">✕</button>
       </div>
       <div class="game-entry-fields">
         <div class="form-group">
@@ -1255,8 +1256,9 @@ async function createGamePR(gameRows) {
     const repoData = JSON.parse(decodeURIComponent(escape(atob(fileInfo.content.replace(/\n/g, '')))));
     const fileSha  = fileInfo.sha;
 
-    // 2. Re-number gameRows from repo's current max to avoid collisions with parallel submissions
-    const repoBase = repoData.length ? Math.max(...repoData.map(r => r[0])) + 1 : 1;
+    // 2. Re-number gameRows based on repo's current max to avoid stale local-cache collisions
+    //    (note: two open PRs created concurrently may still overlap — CI will catch at merge time)
+    const repoBase = repoData.length ? repoData.reduce((m, r) => Math.max(m, r[0]), 0) + 1 : 1;
     gameRows = gameRows.map((row, i) => [repoBase + i, ...row.slice(1)]);
 
     const firstNum = gameRows[0][0];
@@ -1323,7 +1325,7 @@ async function createGamePR(gameRows) {
       body: JSON.stringify({ title: prTitle, head: branch, base: GH_BASE, body: prBody }),
     });
 
-    prResult.innerHTML = `✅ PR created! <a href="${pr.html_url}" target="_blank">${pr.title} →</a>`;
+    prResult.innerHTML = `✅ PR created! <a href="${pr.html_url}" target="_blank" rel="noopener noreferrer">${pr.title} →</a>`;
     prResult.classList.add('show');
     const n = gameRows.length;
     showToast(`✓ Pull request opened on GitHub (${n} game${n>1?'s':''})`, 'success');

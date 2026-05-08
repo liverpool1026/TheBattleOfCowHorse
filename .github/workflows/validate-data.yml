@@ -55,11 +55,18 @@ jobs:
                   if not isinstance(row, list) or len(row) == 0:
                       print(f"❌ {src} data.json row {i+1} is malformed: {row!r}")
                       sys.exit(1)
+                  if not isinstance(row[0], int):
+                      print(f"❌ {src} data.json row {i+1} game number is not an integer: {row[0]!r}")
+                      sys.exit(1)
 
           # Check that new game numbers are contiguous
           base_nums = {row[0] for row in base_data}
           new_rows = [row for row in pr_data if row[0] not in base_nums]
-          new_nums = sorted(row[0] for row in new_rows)
+          new_nums = sorted(set(row[0] for row in new_rows))
+
+          if not new_nums:
+              print(f"❌ Continuity check failed: no new game numbers found among the {diff} added row(s); game numbers may all collide with existing entries.")
+              sys.exit(1)
 
           if len(new_nums) != diff:
               print(f"❌ Continuity check failed: expected {diff} new game number(s), found {len(new_nums)} unique new game number(s).")

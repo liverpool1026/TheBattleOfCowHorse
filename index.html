@@ -539,7 +539,7 @@
     <button class="modal-close" onclick="closeModal()">✕</button>
     <div class="modal-title">⚔ Add New Game(s)</div>
     <div class="games-list" id="gamesList"></div>
-    <button class="add-game-row-btn" onclick="addGameRow()">＋ Add another game</button>
+    <button type="button" class="add-game-row-btn" onclick="addGameRow()">＋ Add another game</button>
     <div class="form-actions">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
       <button class="btn-submit" onclick="submitGame(false)">Save Locally</button>
@@ -1243,6 +1243,10 @@ function toBase64Unicode(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
 
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 async function createGamePR(gameRows) {
   const btn = document.getElementById('btnPR');
   const prResult = document.getElementById('prResult');
@@ -1325,7 +1329,7 @@ async function createGamePR(gameRows) {
       body: JSON.stringify({ title: prTitle, head: branch, base: GH_BASE, body: prBody }),
     });
 
-    prResult.innerHTML = `✅ PR created! <a href="${pr.html_url}" target="_blank" rel="noopener noreferrer">${pr.title} →</a>`;
+    prResult.innerHTML = `✅ PR created! <a href="${escHtml(pr.html_url)}" target="_blank" rel="noopener noreferrer">${escHtml(pr.title)} →</a>`;
     prResult.classList.add('show');
     const n = gameRows.length;
     showToast(`✓ Pull request opened on GitHub (${n} game${n>1?'s':''})`, 'success');
@@ -1338,7 +1342,7 @@ async function createGamePR(gameRows) {
       : msg;
     showToast(`PR failed: ${hint}`, 'error');
     prResult.innerHTML =
-      `❌ ${hint} <button onclick="openSettings()" style="background:transparent;border:none;cursor:pointer;text-decoration:underline;font-size:.8rem">⚙ Fix token</button>`;
+      `❌ ${escHtml(hint)} <button onclick="openSettings()" style="background:transparent;border:none;cursor:pointer;text-decoration:underline;font-size:.8rem">⚙ Fix token</button>`;
     prResult.classList.add('show', 'error');
   } finally {
     btn.classList.remove('loading');

@@ -1113,7 +1113,7 @@ function renderModalGames() {
     return `<div class="game-entry">
       <div class="game-entry-header">
         <span class="game-num-badge">GAME #${base + i}</span>
-        <input type="date" class="form-control game-entry-date" value="${g.date}"
+        <input type="date" class="form-control game-entry-date" value="${escHtml(g.date)}"
           aria-label="Date for game ${base+i}"
           onchange="updateModalGame(${i},'date',this.value)">
         <button type="button" class="remove-game-btn" onclick="removeGameRow(${i})"

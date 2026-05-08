@@ -59,6 +59,18 @@ jobs:
                       print(f"❌ {src} data.json row {i+1} game number is not an integer: {row[0]!r}")
                       sys.exit(1)
 
+          # Assert data.json is append-only: every existing row must be present and unchanged
+          pr_by_num = {row[0]: row for row in pr_data}
+          for row in base_data:
+              num = row[0]
+              if num not in pr_by_num:
+                  print(f"❌ Immutability check failed: game #{num} exists in base but is missing from PR.")
+                  sys.exit(1)
+              if pr_by_num[num] != row:
+                  print(f"❌ Immutability check failed: game #{num} was modified (base: {row!r}, PR: {pr_by_num[num]!r}).")
+                  sys.exit(1)
+          print(f"✅ Immutability check passed: all {base_len} existing record(s) are unchanged.")
+
           # Check that new game numbers are contiguous
           base_nums = {row[0] for row in base_data}
           new_rows = [row for row in pr_data if row[0] not in base_nums]

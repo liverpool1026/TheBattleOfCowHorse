@@ -399,6 +399,26 @@
     }
 
     /* ── LITERATURE CONTENT ── */
+    .literature-btn {
+      margin-top:.9rem;
+      padding:.45rem 1.6rem;
+      background:linear-gradient(135deg,rgba(196,30,58,.22) 0%,rgba(255,215,0,.1) 100%);
+      border:1px solid rgba(255,215,0,.55);
+      border-radius:30px;
+      color:var(--gold);
+      font-size:.78rem;
+      letter-spacing:.28rem;
+      cursor:pointer;
+      font-family:var(--font-body);
+      transition:background .25s, border-color .25s, box-shadow .25s, transform .15s;
+    }
+    .literature-btn:hover {
+      background:linear-gradient(135deg,rgba(196,30,58,.45) 0%,rgba(255,215,0,.22) 100%);
+      border-color:var(--gold);
+      box-shadow:0 0 18px rgba(255,215,0,.25),0 0 6px rgba(196,30,58,.3);
+      transform:translateY(-1px);
+    }
+    .literature-btn:active { transform:translateY(0); }
     #literatureContent h1,#literatureContent h2,#literatureContent h3 {
       font-family:var(--font-display); color:var(--gold);
       margin:1.2rem 0 .5rem; letter-spacing:.1rem;
@@ -487,9 +507,10 @@
   <div class="header-sub">Romance of the Three Teams &nbsp;·&nbsp; Battle Records</div>
   <div class="header-divider"></div>
   <div class="ornament">⚔ &nbsp;牛 &nbsp;·&nbsp; 马 &nbsp;·&nbsp; 太后&nbsp; ⚔</div>
-  <div style="margin-top:.7rem;font-size:.72rem;color:var(--muted);letter-spacing:.08rem">
-    📖 <span style="color:rgba(255,215,0,.55)">太后文献 · 古籍传录</span>
-  </div>
+  <button onclick="document.getElementById('literatureCard').scrollIntoView({behavior:'smooth',block:'start'})"
+    class="literature-btn">
+    👑 &nbsp;太后文献 &nbsp;·&nbsp; 古籍传录 &nbsp;👑
+  </button>
 </div>
 
 <div class="container">
@@ -1433,20 +1454,33 @@ async function loadLiterature() {
   const content = document.getElementById('literatureContent');
   const error   = document.getElementById('literatureError');
   try {
+    const headers = { 'Accept': 'application/vnd.github.html+json' };
+    const tok = getToken();
+    if (tok) headers['Authorization'] = 'Bearer ' + tok;
     const resp = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/readme`,
-      { headers: { 'Accept': 'application/vnd.github.html+json' } }
+      { headers }
     );
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const html = await resp.text();
-    // Sanitise: allow standard inline/block elements, strip script/style
+    // Sanitise: remove dangerous elements and attributes
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
-    tmp.querySelectorAll('script,style,iframe,form,input,button').forEach(el => el.remove());
+    tmp.querySelectorAll('script,style,iframe,form,input,button,meta,link,base').forEach(el => el.remove());
+    tmp.querySelectorAll('*').forEach(el => {
+      // Strip all event-handler attributes and javascript: hrefs/srcs
+      [...el.attributes].forEach(attr => {
+        if (/^on/i.test(attr.name)) { el.removeAttribute(attr.name); return; }
+        if (['href','src','action','formaction'].includes(attr.name.toLowerCase())) {
+          if (/^\s*javascript:/i.test(attr.value)) el.removeAttribute(attr.name);
+        }
+      });
+    });
     content.innerHTML = tmp.innerHTML;
     loading.style.display = 'none';
     content.style.display = 'block';
   } catch(e) {
+    console.warn('Failed to load literature:', e);
     loading.style.display = 'none';
     error.style.display   = 'block';
   }

@@ -397,6 +397,39 @@
       .action-bar { padding:.55rem 1rem; gap:.4rem; }
       .ab-btn span.label { display:none; }
     }
+
+    /* ── LITERATURE CONTENT ── */
+    #literatureContent h1,#literatureContent h2,#literatureContent h3 {
+      font-family:var(--font-display); color:var(--gold);
+      margin:1.2rem 0 .5rem; letter-spacing:.1rem;
+    }
+    #literatureContent h1 { font-size:1.1rem; }
+    #literatureContent h2 { font-size:.95rem; border-bottom:1px solid rgba(255,215,0,.15); padding-bottom:.3rem; }
+    #literatureContent h3 { font-size:.85rem; }
+    #literatureContent p  { margin:.5rem 0; color:var(--text); }
+    #literatureContent blockquote {
+      border-left:3px solid rgba(255,215,0,.35); margin:.8rem 0;
+      padding:.4rem .9rem; color:var(--muted); font-style:italic;
+    }
+    #literatureContent ul,#literatureContent ol { padding-left:1.4rem; margin:.5rem 0; }
+    #literatureContent li { margin:.25rem 0; }
+    #literatureContent code {
+      background:rgba(255,215,0,.08); border:1px solid rgba(255,215,0,.15);
+      border-radius:3px; padding:.1rem .35rem; font-size:.8em; color:var(--gold);
+    }
+    #literatureContent pre {
+      background:rgba(0,0,0,.35); border:1px solid rgba(255,215,0,.1);
+      border-radius:8px; padding:.8rem 1rem; overflow-x:auto; margin:.7rem 0;
+    }
+    #literatureContent pre code { background:none; border:none; padding:0; color:var(--text); }
+    #literatureContent a { color:var(--gold); text-decoration:underline; }
+    #literatureContent hr { border:none; border-top:1px solid rgba(255,215,0,.15); margin:1rem 0; }
+    #literatureContent img { max-width:100%; border-radius:6px; }
+    #literatureContent table { border-collapse:collapse; width:100%; margin:.7rem 0; font-size:.8rem; }
+    #literatureContent th,#literatureContent td {
+      border:1px solid rgba(255,215,0,.15); padding:.4rem .7rem; text-align:left;
+    }
+    #literatureContent th { background:rgba(255,215,0,.07); color:var(--gold); }
   </style>
 </head>
 <body>
@@ -455,10 +488,7 @@
   <div class="header-divider"></div>
   <div class="ornament">⚔ &nbsp;牛 &nbsp;·&nbsp; 马 &nbsp;·&nbsp; 太后&nbsp; ⚔</div>
   <div style="margin-top:.7rem;font-size:.72rem;color:var(--muted);letter-spacing:.08rem">
-    📖 Taihou Literature:
-    <a href="https://github.com/liverpool1026/Romance-of-the-Three-Teams" target="_blank" rel="noopener noreferrer" style="color:var(--gold)">
-      Romance-of-the-Three-Teams
-    </a>
+    📖 <span style="color:rgba(255,215,0,.55)">太后文献 · 古籍传录</span>
   </div>
 </div>
 
@@ -535,6 +565,19 @@
     <strong style="color:rgba(255,215,0,.6);letter-spacing:.1rem">HOW TO UPDATE RECORDS</strong><br>
     <strong style="color:var(--text)">Option A — Via webpage:</strong> Use ＋ Add Game or delete rows, then click 📄 data.json to download the updated file. Commit &amp; push <code style="color:var(--gold)">data.json</code> to the repo.<br>
     <strong style="color:var(--text)">Option B — Directly:</strong> Edit <code style="color:var(--gold)">data.json</code> in the repo. Each row is <code>[gameNumber, "DD/MM/YYYY", "Player1", "Player2", "Winner"]</code>. Commit &amp; push — the page will reflect changes on next load.
+  </div>
+
+  <!-- 古籍文献 · Taihou Literature -->
+  <div class="section-title">古籍文献 · 太后传录</div>
+  <div id="literatureCard" style="background:rgba(255,215,0,.03);border:1px solid rgba(255,215,0,.12);border-radius:14px;padding:1.6rem 2rem;min-height:6rem;line-height:1.85;font-size:.82rem;color:var(--text)">
+    <div id="literatureLoading" style="display:flex;align-items:center;gap:.8rem;color:var(--muted);font-size:.75rem;letter-spacing:.15rem">
+      <span style="width:16px;height:16px;border:2px solid rgba(255,215,0,.15);border-top-color:var(--gold);border-radius:50%;display:inline-block;animation:spin .8s linear infinite"></span>
+      正在加载古籍文献…
+    </div>
+    <div id="literatureContent" style="display:none"></div>
+    <div id="literatureError" style="display:none;color:var(--muted);font-size:.78rem;text-align:center;padding:.5rem 0">
+      📜 古籍暂不可考，文献尚未留存。
+    </div>
   </div>
 
 </div><!-- /container -->
@@ -1382,10 +1425,39 @@ document.addEventListener('keydown',e=>{
 });
 
 /* ═══════════════════════════
+   古籍文献 · LOAD TAIHOU LITERATURE
+═══════════════════════════ */
+async function loadLiterature() {
+  const owner = 'liverpool1026', repo = 'Romance-of-the-Three-Teams';
+  const loading = document.getElementById('literatureLoading');
+  const content = document.getElementById('literatureContent');
+  const error   = document.getElementById('literatureError');
+  try {
+    const resp = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/readme`,
+      { headers: { 'Accept': 'application/vnd.github.html+json' } }
+    );
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const html = await resp.text();
+    // Sanitise: allow standard inline/block elements, strip script/style
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    tmp.querySelectorAll('script,style,iframe,form,input,button').forEach(el => el.remove());
+    content.innerHTML = tmp.innerHTML;
+    loading.style.display = 'none';
+    content.style.display = 'block';
+  } catch(e) {
+    loading.style.display = 'none';
+    error.style.display   = 'block';
+  }
+}
+
+/* ═══════════════════════════
    START
 ═══════════════════════════ */
 updateTokenIndicator();
 init();
+loadLiterature();
 </script>
 </body>
 </html>

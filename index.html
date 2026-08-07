@@ -608,6 +608,15 @@
   <div class="modal" id="addGameModal">
     <button class="modal-close" onclick="closeModal()">✕</button>
     <div class="modal-title">⚔ Add New Game(s)</div>
+    <div class="form-group" style="margin-bottom:.9rem">
+      <label class="form-label" for="targetSelect">Target</label>
+      <select id="targetSelect" class="form-control" onchange="onTargetChange(this.value)">
+        <option value="master">🏠 master (default)</option>
+      </select>
+      <div id="targetHint" style="display:none;font-size:.68rem;color:var(--muted);margin-top:.3rem">
+        Set your GitHub token in ⚙ Settings to target an open PR instead of master.
+      </div>
+    </div>
     <div class="games-list" id="gamesList"></div>
     <button type="button" class="add-game-row-btn" onclick="addGameRow()">＋ Add another game</button>
     <div class="form-actions">
@@ -681,6 +690,8 @@ const PER_PAGE=20;
 let pieChart=null, barChart=null;
 let modalGames=[];
 let modalBase=1;
+let modalTarget={ base: 'master', isPR: false };
+let modalOpenPRs={};
 
 /* ═══════════════════════════
    FALLBACK DATA (always works offline / file://)
@@ -1160,9 +1171,47 @@ function openModal() {
   const today=new Date().toISOString().slice(0,10);
   modalGames=[{date:today, p1:'', p2:'', winner:''}];
   modalBase=nextGameNum();
+  modalTarget={ base: GH_BASE, isPR: false };
   document.getElementById('prResult').classList.remove('show', 'error');
   renderModalGames();
+  resetTargetSelect();
   document.getElementById('modalBackdrop').classList.add('open');
+  loadOpenPRs();
+}
+
+function resetTargetSelect() {
+  const sel = document.getElementById('targetSelect');
+  sel.innerHTML = '<option value="master">🏠 master (default)</option>';
+  sel.value = 'master';
+  document.getElementById('targetHint').style.display = getToken() ? 'none' : 'block';
+}
+
+async function loadOpenPRs() {
+  if (!getToken()) return;
+  const sel = document.getElementById('targetSelect');
+  modalOpenPRs = {};
+  try {
+    const prs = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/pulls?state=open&per_page=100`);
+    if (!document.getElementById('modalBackdrop').classList.contains('open')) return;
+    prs.forEach(pr => {
+      modalOpenPRs[pr.number] = pr;
+      const opt = document.createElement('option');
+      opt.value = String(pr.number);
+      opt.textContent = `🔀 #${pr.number} ${pr.title} (→ ${pr.base.ref})`;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    // Silently skip — user can still target master
+  }
+}
+
+function onTargetChange(value) {
+  if (value === 'master') {
+    modalTarget = { base: GH_BASE, isPR: false };
+  } else {
+    const pr = modalOpenPRs[Number(value)];
+    modalTarget = { base: pr.head.ref, isPR: true, prNumber: pr.number, prTitle: pr.title };
+  }
 }
 
 function renderModalGames() {
@@ -1252,7 +1301,7 @@ function submitGame(createPR = false) {
 
   if (createPR) {
     if (!getToken()) { openSettings(); showToast('Set your GitHub token first','error'); return; }
-    createGamePR(gameRows);
+    createGamePR(gameRows, modalTarget);
   } else {
     gameRows.forEach(row => DATA.push(row));
     DATA.sort((a,b)=>a[0]-b[0]);
@@ -1319,20 +1368,21 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-async function createGamePR(gameRows) {
+async function createGamePR(gameRows, target = { base: GH_BASE, isPR: false }) {
   const btn = document.getElementById('btnPR');
   const prResult = document.getElementById('prResult');
   btn.classList.add('loading');
   btn.disabled = true;
   prResult.classList.remove('show', 'error');
+  const baseRef = target.base;
 
   try {
-    // 1. Get current data.json (content + sha)
-    const fileInfo = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/data.json`);
+    // 1. Get current data.json (content + sha) from the target ref (master, or an open PR's branch)
+    const fileInfo = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/data.json?ref=${encodeURIComponent(baseRef)}`);
     const repoData = JSON.parse(decodeURIComponent(escape(atob(fileInfo.content.replace(/\n/g, '')))));
     const fileSha  = fileInfo.sha;
 
-    // 2. Re-number gameRows based on repo's current max to avoid stale local-cache collisions
+    // 2. Re-number gameRows based on the target ref's current max to avoid stale local-cache collisions
     //    (note: two open PRs created concurrently may still overlap — CI will catch at merge time)
     const repoBase = repoData.length ? repoData.reduce((m, r) => Math.max(m, r[0]), 0) + 1 : 1;
     gameRows = gameRows.map((row, i) => [repoBase + i, ...row.slice(1)]);
@@ -1340,17 +1390,17 @@ async function createGamePR(gameRows) {
     const firstNum = gameRows[0][0];
     const lastNum  = gameRows[gameRows.length-1][0];
 
-    // 3. Get master branch HEAD sha
-    const masterRef = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/git/ref/heads/${GH_BASE}`);
-    const masterSha = masterRef.object.sha;
+    // 3. Get target branch HEAD sha
+    const baseBranchRef = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/git/ref/heads/${encodeURIComponent(baseRef)}`);
+    const baseSha = baseBranchRef.object.sha;
 
-    // 4. Create new branch
+    // 4. Create new branch off the target
     const suffix = gameRows.length===1 ? `${firstNum}` : `${firstNum}-${lastNum}`;
-    const branch = `add-game-${suffix}-${Date.now()}`;
+    const branch = target.isPR ? `add-game-${suffix}-onto-pr${target.prNumber}-${Date.now()}` : `add-game-${suffix}-${Date.now()}`;
     await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/git/refs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: masterSha }),
+      body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: baseSha }),
     });
 
     // 5. Commit updated data.json to new branch
@@ -1371,11 +1421,12 @@ async function createGamePR(gameRows) {
       }),
     });
 
-    // 6. Open PR
+    // 6. Open PR against the chosen target (master, or stacked on an existing open PR's branch)
     const prTitle = gameRows.length===1
       ? `Game #${firstNum}: ${P[gameRows[0][4]].icon} ${gameRows[0][4]} wins (${gameRows[0][1]})`
       : `Games #${firstNum}–${lastNum}: ${gameRows.length} new battle records (${gameRows[0][1]})`;
-    const prBody = gameRows.length===1
+    const stackedNote = target.isPR ? `\n\n*Stacked on #${target.prNumber}: ${escHtml(target.prTitle)}*` : '';
+    const prBody = (gameRows.length===1
       ? [
           '## New Battle Record', '',
           '| | |', '|---|---|',
@@ -1393,12 +1444,12 @@ async function createGamePR(gameRows) {
           ...gameRows.map(([n,d,p1,p2,w]) =>
             `| ${n} | ${d} | ${P[p1].icon} ${p1} | ${P[p2].icon} ${p2} | ${P[w].icon} **${w}** |`),
           '', '*Auto-generated by the Battle Records webapp*',
-        ].join('\n');
+        ].join('\n')) + stackedNote;
 
     const pr = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/pulls`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: prTitle, head: branch, base: GH_BASE, body: prBody }),
+      body: JSON.stringify({ title: prTitle, head: branch, base: baseRef, body: prBody }),
     });
 
     prResult.innerHTML = `✅ PR created! <a href="${escHtml(pr.html_url)}" target="_blank" rel="noopener noreferrer">${escHtml(pr.title)} →</a>`;

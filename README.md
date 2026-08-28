@@ -40,11 +40,11 @@ Built as a sleek, Three Kingdoms–themed single-page app (`index.html`), it let
 
 | Metric | Value |
 |--------|-------|
-| ⚔️ Battles Entered | **35** |
-| 🏆 Victories | **11** |
-| 📜 Win Rate | **31.4%** |
-| 🐄 Record vs 牛 | 4 W – 9 L |
-| 🐴 Record vs 马 | 7 W – 15 L |
+| ⚔️ Battles Entered | **48** |
+| 🏆 Victories | **16** |
+| 📜 Win Rate | **33.3%** |
+| 🐄 Record vs 牛 | 7 W – 11 L |
+| 🐴 Record vs 马 | 9 W – 21 L |
 
 *Numbers lie. Emperors don't need a high win rate — they only need to be the last one standing when history is written.*
 
@@ -54,19 +54,19 @@ Built as a sleek, Three Kingdoms–themed single-page app (`index.html`), it let
 
 | Combatant | Battles | Wins | Losses | Win Rate |
 |-----------|---------|------|--------|----------|
-| 👑 **太后** (Empress) | 35 | 11 | 24 | 31.4% |
-| 🐄 **牛** (Cow) | 140 | 72 | 68 | 51.4% |
-| 🐴 **马** (Horse) | 149 | 79 | 70 | 53.0% |
+| 👑 **太后** (Empress) | 48 | 16 | 32 | 33.3% |
+| 🐄 **牛** (Cow) | 215 | 94 | 121 | 43.7% |
+| 🐴 **马** (Horse) | 227 | 135 | 92 | 59.5% |
 
 ### Head-to-Head
 
 | Matchup | Results |
 |---------|---------|
-| 🐄 牛 vs 🐴 马 | 63 – 64 *(virtually even)* |
-| 👑 太后 vs 🐄 牛 | 4 – 9 |
-| 👑 太后 vs 🐴 马 | 7 – 15 |
+| 🐄 牛 vs 🐴 马 | 83 – 114 |
+| 👑 太后 vs 🐄 牛 | 7 – 11 |
+| 👑 太后 vs 🐴 马 | 9 – 21 |
 
-> Total recorded battles: **162**
+> Total recorded battles: **245**
 
 ---
 

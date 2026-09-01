@@ -197,6 +197,7 @@
     .streak-badge { display:inline-block; font-size:.62rem; font-weight:700; padding:.14rem .5rem; border-radius:10px; margin-top:.45rem; letter-spacing:.05rem; }
     .streak-badge.W { background:rgba(46,213,115,.15); color:var(--green); border:1px solid rgba(46,213,115,.3); }
     .streak-badge.L { background:rgba(255,71,87,.15);  color:var(--red);   border:1px solid rgba(255,71,87,.3); }
+    .external-badge { display:block; font-size:.62rem; font-weight:700; padding:.14rem .5rem; border-radius:10px; margin-top:.4rem; letter-spacing:.03rem; background:rgba(205,127,50,.15); color:#CD7F32; border:1px solid rgba(205,127,50,.35); }
 
     /* ── H2H ── */
     .h2h-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1.2rem; }
@@ -985,6 +986,7 @@ function renderStats() {
       <div class="wr-bar"><div class="wr-fill" style="width:${wr}%"></div></div>
       <div class="form-row">${dots}</div>
       <div><span class="streak-badge ${sk.t}">${sk.t==='W'?'🔥':'❄'} ${sk.n} ${sk.t==='W'?'WIN':'LOSS'} STREAK</span></div>
+      ${name==='马' ? '<span class="external-badge">🥉 3rd Place · Deswik Pool Competition</span>' : ''}
     </div>`;
   }).join('');
 }

@@ -1362,6 +1362,31 @@ async function ghFetch(path, opts = {}) {
   return body;
 }
 
+async function ghGraphQL(query, variables) {
+  const resp = await fetch('https://api.github.com/graphql', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${getToken()}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  const body = await resp.json();
+  if (body.errors) throw new Error(body.errors[0].message);
+  return body.data;
+}
+
+async function enableAutoMerge(pullRequestId, mergeMethod = 'MERGE') {
+  return ghGraphQL(
+    `mutation($id: ID!, $method: PullRequestMergeMethod!) {
+      enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: $method }) {
+        pullRequest { autoMergeRequest { enabledAt } }
+      }
+    }`,
+    { id: pullRequestId, method: mergeMethod },
+  );
+}
+
 function toBase64Unicode(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
@@ -1454,10 +1479,20 @@ async function createGamePR(gameRows, target = { base: GH_BASE, isPR: false }) {
       body: JSON.stringify({ title: prTitle, head: branch, base: baseRef, body: prBody }),
     });
 
-    prResult.innerHTML = `✅ PR created! <a href="${escHtml(pr.html_url)}" target="_blank" rel="noopener noreferrer">${escHtml(pr.title)} →</a>`;
+    let autoMergeEnabled = false;
+    try {
+      await enableAutoMerge(pr.node_id);
+      autoMergeEnabled = true;
+    } catch (e) {
+      console.warn('Could not enable auto-merge:', e.message);
+    }
+
+    prResult.innerHTML = `✅ PR created${autoMergeEnabled ? ' — auto-merge on' : ''}! <a href="${escHtml(pr.html_url)}" target="_blank" rel="noopener noreferrer">${escHtml(pr.title)} →</a>`;
     prResult.classList.add('show');
     const n = gameRows.length;
-    showToast(`✓ Pull request opened on GitHub (${n} game${n>1?'s':''})`, 'success');
+    showToast(autoMergeEnabled
+      ? `✓ Pull request opened, auto-merge enabled (${n} game${n>1?'s':''})`
+      : `✓ Pull request opened — could not enable auto-merge (${n} game${n>1?'s':''})`, 'success');
   } catch(e) {
     const msg = e.message || '';
     const hint = msg.includes('not accessible') || msg.includes('Resource') || msg.includes('403')

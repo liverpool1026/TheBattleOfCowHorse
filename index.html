@@ -1353,7 +1353,7 @@ async function ghFetch(path, opts = {}) {
     headers: {
       'Authorization': `Bearer ${getToken()}`,
       'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
+      'X-GitHub-Api-Version': '2026-03-10',
       ...(opts.headers || {}),
     }
   });
@@ -1393,6 +1393,29 @@ function toBase64Unicode(str) {
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function attachPRToStack(parentPrNumber, childPrNumber) {
+  const stacks = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/stacks?pull_request=${parentPrNumber}&per_page=100`);
+  const existing = Array.isArray(stacks)
+    ? stacks.find(s => Array.isArray(s.pull_requests) && s.pull_requests.some(pr => pr.number === parentPrNumber))
+    : null;
+
+  if (existing) {
+    await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/stacks/${existing.number}/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pull_requests: [childPrNumber] }),
+    });
+    return existing.number;
+  }
+
+  const created = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/stacks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pull_requests: [parentPrNumber, childPrNumber] }),
+  });
+  return created.number;
 }
 
 async function createGamePR(gameRows, target = { base: GH_BASE, isPR: false }) {
@@ -1479,6 +1502,22 @@ async function createGamePR(gameRows, target = { base: GH_BASE, isPR: false }) {
       body: JSON.stringify({ title: prTitle, head: branch, base: baseRef, body: prBody }),
     });
 
+    let stackStatus = '';
+    if (target.isPR) {
+      try {
+        const stackNumber = await attachPRToStack(target.prNumber, pr.number);
+        if (stackNumber) {
+          stackStatus = ` · stacked in #${stackNumber}`;
+        } else {
+          console.warn('Could not determine stack number after linking');
+          stackStatus = ' · stack linking failed';
+        }
+      } catch (stackErr) {
+        console.warn('Could not link PR stack:', stackErr.message);
+        stackStatus = ' · stack linking failed';
+      }
+    }
+
     let autoMergeEnabled = false;
     try {
       await enableAutoMerge(pr.node_id);
@@ -1491,8 +1530,8 @@ async function createGamePR(gameRows, target = { base: GH_BASE, isPR: false }) {
     prResult.classList.add('show');
     const n = gameRows.length;
     showToast(autoMergeEnabled
-      ? `✓ Pull request opened, auto-merge enabled (${n} game${n>1?'s':''})`
-      : `✓ Pull request opened — could not enable auto-merge (${n} game${n>1?'s':''})`, 'success');
+      ? `✓ Pull request opened, auto-merge enabled (${n} game${n>1?'s':''})${stackStatus}`
+      : `✓ Pull request opened — could not enable auto-merge (${n} game${n>1?'s':''})${stackStatus}`, 'success');
   } catch(e) {
     const msg = e.message || '';
     const hint = msg.includes('not accessible') || msg.includes('Resource') || msg.includes('403')

@@ -1,0 +1,60 @@
+name: Notify Teams of new PRs
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Send PR card to Teams
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          url = os.environ.get("TEAMS_WEBHOOK_URL")
+          if not url:
+              raise SystemExit("Missing TEAMS_WEBHOOK_URL secret")
+
+          with open(os.environ["GITHUB_EVENT_PATH"]) as f:
+              event = json.load(f)
+          pr = event["pull_request"]
+          card = {
+              "type": "AdaptiveCard",
+              "version": "1.2",
+              "body": [
+                  {"type": "TextBlock", "text": "New pull request",
+                   "weight": "Bolder"},
+                  {"type": "TextBlock", "wrap": True,
+                   "text": f"#{pr['number']}: {pr['title']}"},
+                  {"type": "TextBlock", "wrap": True,
+                   "text": f"{event['repository']['full_name']} • {pr['user']['login']}"}
+              ],
+              "actions": [
+                  {"type": "Action.OpenUrl", "title": "View pull request",
+                   "url": pr["html_url"]}
+              ]
+          }
+          payload = {
+              "type": "message",
+              "attachments": [{
+                  "contentType": "application/vnd.microsoft.card.adaptive",
+                  "contentUrl": None,
+                  "content": card
+              }]
+          }
+          request = urllib.request.Request(
+              url, data=json.dumps(payload).encode(),
+              headers={"Content-Type": "application/json"}, method="POST"
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              print(f"Teams webhook accepted: HTTP {response.status}")
+          PY
